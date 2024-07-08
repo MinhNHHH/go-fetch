@@ -17,13 +17,23 @@ func DefaultArtSys() string {
 }
 
 func HandleClient(cmd []string) {
-	sysInfor := NewSysInfor()
-	ascii := DefaultArt(DefaultArtSys())
-	client := &ClientDetail{
-		AsciiArt: ascii,
-		SysInfor: sysInfor,
+	done := make(chan bool)
+	var sysInfor SystemInfor
+
+	go func() {
+		sysInfor = NewSysInfor()
+		done <- true
+	}()
+
+	if <-done {
+		ascii := DefaultArt(DefaultArtSys())
+		client := &ClientDetail{
+			AsciiArt: ascii,
+			SysInfor: sysInfor,
+		}
+		client.handleCommand(cmd)
 	}
-	client.handleCommand(cmd)
+
 }
 
 func (c *ClientDetail) handleCommand(command []string) {
@@ -53,9 +63,8 @@ func (c *ClientDetail) handleCommand(command []string) {
 				PlaceHolder[codeColor] = CodeColor[color]
 			}
 		}
-	default:
 	}
-	c.printInfor(disable, seemore)
+	c.PrintInfor(disable, seemore)
 }
 
 func (c *ClientDetail) CountPattern(input string) int {
@@ -77,7 +86,7 @@ func (c *ClientDetail) replacePlaceHolder(input string) string {
 	return input
 }
 
-func (c *ClientDetail) printInfor(disable, seemore []string) {
+func (c *ClientDetail) PrintInfor(disable, seemore []string) {
 	listInfor := c.SysInfor.ListSysInfor(disable, seemore)
 	maxLines := Max(len(c.AsciiArt.Lines), len(listInfor))
 	asciiLine, sysInformLine := "", ""
@@ -93,8 +102,30 @@ func (c *ClientDetail) printInfor(disable, seemore []string) {
 		} else {
 			sysInformLine = ""
 		}
+
+		// if i == len(c.AsciiArt.Lines)-3 {
+		// 	sysInformLine = drawColorBoxesInLine([]string{CodeColor["blue"]}, 2, 1)
+		// }
 		originalDistance := c.AsciiArt.MaxCleanLen + pattern
 		padding := 5
 		fmt.Printf("%-*s %s\n", originalDistance+padding, asciiLine, sysInformLine)
 	}
+}
+
+// drawColorBoxesInLine builds and returns a string representing multiple colored boxes of given width, height, and background colors in one line
+func DrawColorBoxesInLine(colorCodes []string, width int, height int) string {
+	var sb strings.Builder
+	reset := "\033[0m"
+
+	for i := 0; i < height; i++ {
+		for _, colorCode := range colorCodes {
+			sb.WriteString(colorCode) // Set background color
+			for j := 0; j < width; j++ {
+				sb.WriteString(" ") // Print space to form the box
+			}
+			sb.WriteString(reset) // Reset color to separate boxes
+		}
+	}
+
+	return sb.String()
 }

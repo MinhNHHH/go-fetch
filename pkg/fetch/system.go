@@ -37,12 +37,18 @@ var PlaceHolder = map[string]string{
 }
 
 type SystemInfor struct {
-	User     string
-	Terminal string
-	HostName HostNameInfor
-	Cpu      CPUInfor
-	Vm       VMInfor
-	Disk     DiskInfo
+	User       string
+	Terminal   string
+	HostName   HostNameInfor
+	Cpu        CPUInfor
+	Vm         VMInfor
+	Disk       DiskInfo
+	Packages   string
+	GPU        string
+	Theme      string
+	Resolution string
+	Shell      string
+	Icon       string
 }
 
 type HostNameInfor struct {
@@ -186,8 +192,7 @@ func getHostName() HostNameInfor {
 	return hostName
 }
 
-func (si SystemInfor) GetUptime() string {
-	uptime := si.HostName.UpTime
+func GetUptime(uptime uint64) string {
 	days, hours, mins := uptimeToDaysHoursMins(uptime)
 
 	if days > 0 {
@@ -199,24 +204,8 @@ func (si SystemInfor) GetUptime() string {
 	}
 }
 
-func (si SystemInfor) GetHost() string {
-	return si.HostName.HostName
-}
-
-func (si SystemInfor) GetOS() string {
-	return si.HostName.OS
-}
-
-func (si SystemInfor) GetKernelVersion() string {
-	return si.HostName.KernelVersion
-}
-
-func (si SystemInfor) GetCpu() string {
-	return si.Cpu.ModelName
-}
-
-func (si SystemInfor) GetMemmory() string {
-	return fmt.Sprintf("%dMB / %dMB", si.Vm.Used/1024/1024, si.Vm.Total/1024/1024)
+func GetMemmory(vmUsed, vmTotal uint64) string {
+	return fmt.Sprintf("%dMB / %dMB", vmUsed/1024/1024, vmTotal/1024/1024)
 }
 
 func runCommand(name string, args ...string) (string, error) {
@@ -225,7 +214,7 @@ func runCommand(name string, args ...string) (string, error) {
 	return string(output), err
 }
 
-func (si SystemInfor) GetPackages() string {
+func GetPackages(ch chan<- string) {
 	var cmd string
 	var args []string
 
@@ -239,18 +228,18 @@ func (si SystemInfor) GetPackages() string {
 	case "windows":
 		cmd = "powershell"
 		args = []string{"-Command", "Get-Package | Measure-Object | Select-Object -ExpandProperty Count"}
-	default:
-		return ""
 	}
 
 	output, err := runCommand(cmd, args...)
 	if err != nil {
-		return ""
+		fmt.Printf("Error get packages: %s", err)
+		ch <- ""
+		return
 	}
-	return strings.TrimSpace(output)
+	ch <- strings.TrimSpace(output)
 }
 
-func (si SystemInfor) GetResolution() string {
+func GetResolution(ch chan<- string) {
 	var cmd string
 	var args []string
 
@@ -264,18 +253,19 @@ func (si SystemInfor) GetResolution() string {
 	case "windows":
 		cmd = "powershell"
 		args = []string{"-Command", "Get-WmiObject -Class Win32_VideoController | Select-Object -ExpandProperty VideoModeDescription"}
-	default:
-		return ""
+
 	}
 	output, err := runCommand(cmd, args...)
 	if err != nil {
-		return ""
+		fmt.Printf("Error get resolution: %s", err)
+		ch <- ""
+		return
 	}
 	resolutions := strings.Split(strings.Trim(output, "\n"), "\n")
-	return strings.Join(resolutions, ", ")
+	ch <- strings.TrimSpace(strings.Join(resolutions, ", "))
 }
 
-func (si SystemInfor) GetGpu() string {
+func GetGpu(ch chan<- string) {
 	var cmd string
 	var args []string
 
@@ -289,17 +279,17 @@ func (si SystemInfor) GetGpu() string {
 	case "windows":
 		cmd = "powershell"
 		args = []string{"-Command", "Get-WmiObject -Class Win32_VideoController | Select-Object -ExpandProperty Name"}
-	default:
-		return ""
 	}
 	output, err := runCommand(cmd, args...)
 	if err != nil {
-		return ""
+		fmt.Printf("Error get Gpu: %s", err)
+		ch <- ""
+		return
 	}
-	return strings.TrimSpace(output)
+	ch <- strings.TrimSpace(output)
 }
 
-func (si SystemInfor) GetShell() string {
+func GetShell(ch chan<- string) {
 	var cmd string
 	var args []string
 
@@ -310,17 +300,17 @@ func (si SystemInfor) GetShell() string {
 	case "windows":
 		cmd = "powershell"
 		args = []string{"-Command", "[System.Environment]::GetEnvironmentVariable('ComSpec')"}
-	default:
-		return ""
 	}
 	output, err := runCommand(cmd, args...)
 	if err != nil {
-		return ""
+		fmt.Printf("Error get theme %s", err)
+		ch <- ""
+		return
 	}
-	return strings.TrimSpace(output)
+	ch <- strings.TrimSpace(output)
 }
 
-func (si SystemInfor) GetTheme() string {
+func GetTheme(ch chan<- string) {
 	var cmd string
 	var args []string
 
@@ -334,24 +324,42 @@ func (si SystemInfor) GetTheme() string {
 	case "windows":
 		cmd = "powershell"
 		args = []string{"-Command", "(Get-ItemProperty -Path HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize).AppsUseLightThemes"}
-	default:
-		return ""
 	}
 	output, err := runCommand(cmd, args...)
 	if err != nil {
-		return ""
+		fmt.Printf("Error get theme: %s", err)
+		ch <- ""
+		return
 	}
-	return strings.TrimSpace(output)
+	ch <- strings.TrimSpace(output)
 }
 
-// func (si SystemInfor) GetIcons() string {
-// 	cmd, err := ExecLinuxCmd("gsettings get org.gnome.desktop.interface icon-theme")
-// 	if err != nil {
-// 		fmt.Printf("err: %s", err)
-// 		return ""
-// 	}
-// 	return strings.Trim(cmd, "\n")
-// }
+func GetIcons(ch chan<- string) {
+	var cmd string
+	var args []string
+
+	switch runtime.GOOS {
+	case "linux":
+		cmd = "sh"
+		args = []string{"-c", "gsettings get org.gnome.desktop.interface icon-theme"}
+	case "darwin":
+		// macOS does not have a system-wide icon theme configuration like Linux.
+		ch <- "Apple"
+		return
+	case "windows":
+		// Windows does not have a system-wide icon theme configuration like Linux.
+		ch <- "Windows"
+		return
+	}
+
+	output, err := runCommand(cmd, args...)
+	if err != nil {
+		fmt.Printf("Error get Icons: %s", err)
+		ch <- ""
+		return
+	}
+	ch <- strings.TrimSpace(output)
+}
 
 func (si SystemInfor) formatInfo(label, info string) string {
 	return fmt.Sprintf("%s%s: %s", label, PlaceHolder["${c0}"], info)
@@ -360,21 +368,20 @@ func (si SystemInfor) formatInfo(label, info string) string {
 func (si SystemInfor) ListSysInfor(disable, seemore []string) []string {
 	// We want to display by order
 	listSysInform := []string{
-		fmt.Sprintf(si.User + "@" + si.GetHost()),
+		fmt.Sprintf(si.User + "@" + si.HostName.HostName),
 		"-----------------------------------",
-		si.formatInfo("OS", si.GetOS()),
-		si.formatInfo("Host", si.GetHost()),
-		si.formatInfo("Kernel", si.GetKernelVersion()),
-		si.formatInfo("Uptime", si.GetUptime()),
-		si.formatInfo("Packages", si.GetPackages()),
-		si.formatInfo("Shell", si.GetShell()),
-		si.formatInfo("Resolution", si.GetResolution()),
-		si.formatInfo("Theme", si.GetTheme()),
-		// si.formatInfo("Icons", si.GetIcons()),
-		si.formatInfo("Terminal", si.GetUptime()),
-		si.formatInfo("CPU", si.GetCpu()),
-		si.formatInfo("GPU", si.GetGpu()),
-		si.formatInfo("Memory", si.GetMemmory()),
+		si.formatInfo("OS", si.HostName.OS),
+		si.formatInfo("Host", si.HostName.HostName),
+		si.formatInfo("Kernel", si.HostName.KernelVersion),
+		si.formatInfo("Uptime", GetUptime(si.HostName.UpTime)),
+		si.formatInfo("Packages", si.Packages),
+		si.formatInfo("Shell", si.Shell),
+		si.formatInfo("Resolution", si.Resolution),
+		si.formatInfo("Theme", si.Theme),
+		si.formatInfo("Icons", si.Icon),
+		si.formatInfo("CPU", si.Cpu.ModelName),
+		si.formatInfo("GPU", si.GPU),
+		si.formatInfo("Memory", GetMemmory(si.Vm.Used, si.Vm.Total)),
 	}
 
 	if len(disable) > 0 {
@@ -392,12 +399,32 @@ func (si SystemInfor) ListSysInfor(disable, seemore []string) []string {
 }
 
 func NewSysInfor() SystemInfor {
+	packagesChan := make(chan string)
+	resolutionChan := make(chan string)
+	themChan := make(chan string)
+	gpuChan := make(chan string)
+	shellChan := make(chan string)
+	iconChan := make(chan string)
+
+	go GetIcons(iconChan)
+	go GetResolution(resolutionChan)
+	go GetPackages(packagesChan)
+	go GetTheme(themChan)
+	go GetGpu(gpuChan)
+	go GetShell(shellChan)
+
 	return SystemInfor{
-		User:     getUser(),
-		Terminal: getTerminal(),
-		HostName: getHostName(),
-		Cpu:      getCPU(),
-		Vm:       getVM(),
-		Disk:     getDisk(),
+		User:       getUser(),
+		Terminal:   getTerminal(),
+		HostName:   getHostName(),
+		Cpu:        getCPU(),
+		Vm:         getVM(),
+		Disk:       getDisk(),
+		Packages:   <-packagesChan,
+		Resolution: <-resolutionChan,
+		GPU:        <-gpuChan,
+		Theme:      <-themChan,
+		Shell:      <-shellChan,
+		Icon:       <-iconChan,
 	}
 }
