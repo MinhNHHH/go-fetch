@@ -8,33 +8,12 @@ import (
 	"runtime"
 	"strings"
 
+	asci "github.com/minhnh/fetch/internal/ascii"
 	"github.com/shirou/gopsutil/cpu"
 	"github.com/shirou/gopsutil/disk"
 	"github.com/shirou/gopsutil/host"
 	"github.com/shirou/gopsutil/mem"
 )
-
-var CodeColor = map[string]string{
-	"reset":  "\033[0m",
-	"red":    "\033[1;31m",
-	"green":  "\033[1;32m",
-	"cyan":   "\033[1;33m",
-	"yellow": "\033[1;34m",
-	"purple": "\033[1;35m",
-	"blue":   "\033[1;36m",
-	"white":  "\033[1;37m",
-}
-
-var PlaceHolder = map[string]string{
-	"${c0}": CodeColor["reset"],
-	"${c1}": CodeColor["red"],
-	"${c2}": CodeColor["green"],
-	"${c3}": CodeColor["yellow"],
-	"${c4}": CodeColor["blue"],
-	"${c5}": CodeColor["purple"],
-	"${c6}": CodeColor["cyan"],
-	"${c7}": CodeColor["white"],
-}
 
 type SystemInfor struct {
 	User       string
@@ -362,7 +341,7 @@ func GetIcons(ch chan<- string) {
 }
 
 func (si SystemInfor) formatInfo(label, info string) string {
-	return fmt.Sprintf("%s%s: %s", label, PlaceHolder["${c0}"], info)
+	return fmt.Sprintf("%s%s: %s", label, asci.PlaceHolder["${c0}"], info)
 }
 
 func (si SystemInfor) ListSysInfor(disable, seemore []string) []string {

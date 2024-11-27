@@ -5,6 +5,8 @@ import (
 	"log"
 	"runtime"
 	"strings"
+
+	asci "github.com/minhnh/fetch/internal/ascii"
 )
 
 type ClientDetail struct {
@@ -33,7 +35,6 @@ func HandleClient(cmd []string) {
 		}
 		client.handleCommand(cmd)
 	}
-
 }
 
 func (c *ClientDetail) handleCommand(command []string) {
@@ -60,7 +61,7 @@ func (c *ClientDetail) handleCommand(command []string) {
 		if len(command) >= 2 {
 			for i, color := range command[1:] {
 				codeColor := fmt.Sprintf("${c%d}", i+1)
-				PlaceHolder[codeColor] = CodeColor[color]
+				asci.PlaceHolder[codeColor] = asci.CodeColor[color]
 			}
 		}
 	}
@@ -69,7 +70,7 @@ func (c *ClientDetail) handleCommand(command []string) {
 
 func (c *ClientDetail) CountPattern(input string) int {
 	count := 0
-	for label := range PlaceHolder {
+	for label := range asci.PlaceHolder {
 		if label == "${c0}" {
 			count += strings.Count(input, label) * 4
 		} else {
@@ -80,7 +81,7 @@ func (c *ClientDetail) CountPattern(input string) int {
 }
 
 func (c *ClientDetail) replacePlaceHolder(input string) string {
-	for label, color := range PlaceHolder {
+	for label, color := range asci.PlaceHolder {
 		input = strings.ReplaceAll(input, label, color)
 	}
 	return input
@@ -102,10 +103,6 @@ func (c *ClientDetail) PrintInfor(disable, seemore []string) {
 		} else {
 			sysInformLine = ""
 		}
-
-		// if i == len(c.AsciiArt.Lines)-3 {
-		// 	sysInformLine = drawColorBoxesInLine([]string{CodeColor["blue"]}, 2, 1)
-		// }
 		originalDistance := c.AsciiArt.MaxCleanLen + pattern
 		padding := 5
 		fmt.Printf("%-*s %s\n", originalDistance+padding, asciiLine, sysInformLine)
